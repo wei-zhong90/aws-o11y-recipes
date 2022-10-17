@@ -1,5 +1,6 @@
 import * as cdk from "@aws-cdk/core";
 import * as s3 from "@aws-cdk/aws-s3";
+import * as logs from '@aws-cdk/aws-logs';
 import * as destinations from "@aws-cdk/aws-kinesisfirehose-destinations";
 
 import {
@@ -25,6 +26,8 @@ export class CdkStack extends cdk.Stack {
       handler: "main",
       functionName: "KinesisMessageHandler",
       runtime: lambda.Runtime.GO_1_X,
+      timeout: cdk.Duration.minutes(1),
+      memorySize: 160,
       environment: {
         PROMETHEUS_REMOTE_WRITE_URL: data.AMP.remote_write_url,
         PROMETHEUS_REGION: data.AMP.region,
