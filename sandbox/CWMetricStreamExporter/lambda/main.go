@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -12,8 +13,10 @@ import (
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
+	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
 	"github.com/prometheus/prometheus/prompb"
@@ -31,10 +34,11 @@ type MetricStreamData struct {
 	Unit             string     `json:"unit"`
 }
 type Dimensions struct {
-	Class    string `json:"Class"`
-	Resource string `json:"Resource"`
-	Service  string `json:"Service"`
-	Type     string `json:"Type"`
+	Class      string `json:"Class"`
+	Resource   string `json:"Resource"`
+	Service    string `json:"Service"`
+	Type       string `json:"Type"`
+	InstanceId string `json:"InstanceId"`
 }
 type Value struct {
 	Count float64 `json:"count"`
@@ -55,7 +59,7 @@ const (
 func HandleRequest(ctx context.Context, evnt events.KinesisFirehoseEvent) (events.KinesisFirehoseResponse, error) {
 
 	var response events.KinesisFirehoseResponse
-	var timeSeries []*prompb.TimeSeries
+	var timeSeries []prompb.TimeSeries
 	// These are the 4 value types from Cloudwatch, each of which map to a Prometheus Gauge
 	values := []Values{Count, Max, Min, Sum}
 
@@ -71,6 +75,8 @@ func HandleRequest(ctx context.Context, evnt events.KinesisFirehoseEvent) (event
 			var metricStreamData MetricStreamData
 			json.Unmarshal([]byte(x), &metricStreamData)
 
+			// fmt.Println(metricStreamData)
+
 			// For each metric, the labels + valuetype is the __name__ of the sample, and the corresponding single sample value is used to create the timeseries.
 			for _, value := range values {
 				var samples []prompb.Sample
@@ -78,7 +84,7 @@ func HandleRequest(ctx context.Context, evnt events.KinesisFirehoseEvent) (event
 				currentSamples := handleAddSamples(value, metricStreamData.Value, metricStreamData.Timestamp)
 				samples = append(samples, currentSamples)
 
-				singleTimeSeries := &prompb.TimeSeries{
+				singleTimeSeries := prompb.TimeSeries{
 					Labels:  currentLabels,
 					Samples: samples,
 				}
@@ -127,15 +133,15 @@ func sanitize(text string) string {
 	return replacer.Replace(text)
 }
 
-func handleAddLabels(valueType Values, metricName string, namespace string, dimensions Dimensions) []*prompb.Label {
+func handleAddLabels(valueType Values, metricName string, namespace string, dimensions Dimensions) []prompb.Label {
 
-	var labels []*prompb.Label
+	var labels []prompb.Label
 
 	metricNameLabel := createMetricNameLabel(metricName, valueType)
 	namespaceLabel := createNamespaceLabel(namespace)
 	dimensionLabels := createDimensionLabels(dimensions)
 	labels = append(labels, dimensionLabels...)
-	labels = append(labels, &metricNameLabel, &namespaceLabel)
+	labels = append(labels, metricNameLabel, namespaceLabel)
 	return labels
 }
 
@@ -170,12 +176,12 @@ func createNamespaceLabel(namespace string) prompb.Label {
 	return *namespaceLabel
 }
 
-func createDimensionLabels(dimensions Dimensions) []*prompb.Label {
-	var labels []*prompb.Label
+func createDimensionLabels(dimensions Dimensions) []prompb.Label {
+	var labels []prompb.Label
 
 	// Checks to see if the class / resource / service / type exists, if so creates a label for the dimension.
 	if dimensions.Class != "" {
-		classLabel := &prompb.Label{
+		classLabel := prompb.Label{
 			Name:  "class",
 			Value: sanitize(dimensions.Class),
 		}
@@ -183,7 +189,7 @@ func createDimensionLabels(dimensions Dimensions) []*prompb.Label {
 	}
 
 	if dimensions.Resource != "" {
-		resourceLabel := &prompb.Label{
+		resourceLabel := prompb.Label{
 			Name:  "resource",
 			Value: sanitize(dimensions.Resource),
 		}
@@ -191,7 +197,7 @@ func createDimensionLabels(dimensions Dimensions) []*prompb.Label {
 	}
 
 	if dimensions.Service != "" {
-		serviceLabel := &prompb.Label{
+		serviceLabel := prompb.Label{
 			Name:  "service",
 			Value: sanitize(dimensions.Service),
 		}
@@ -199,12 +205,59 @@ func createDimensionLabels(dimensions Dimensions) []*prompb.Label {
 	}
 
 	if dimensions.Type != "" {
-		typeLabel := &prompb.Label{
+		typeLabel := prompb.Label{
 			Name:  "type",
 			Value: sanitize(dimensions.Type),
 		}
 		labels = append(labels, typeLabel)
 	}
+
+	if dimensions.InstanceId != "" {
+		instance_id := dimensions.InstanceId
+
+		sess, _ := session.NewSession(&aws.Config{
+			Region: aws.String(os.Getenv("AWS_REGION")),
+		})
+
+		svc := ec2.New(sess)
+
+		input := &ec2.DescribeTagsInput{
+			Filters: []*ec2.Filter{
+				{
+					Name: aws.String("resource-id"),
+					Values: []*string{
+						aws.String(instance_id),
+					},
+				},
+			},
+		}
+
+		result, err := svc.DescribeTags(input)
+		if err != nil {
+			if aerr, ok := err.(awserr.Error); ok {
+				switch aerr.Code() {
+				default:
+					fmt.Println(aerr.Error())
+				}
+			} else {
+				// Print the error, cast err to awserr.Error to get the Code and
+				// Message from an error.
+				fmt.Println(err.Error())
+			}
+		}
+
+		for _, tag := range result.Tags {
+			if *tag.Key == "Name" {
+				typeLabel := prompb.Label{
+					Name:  "instance_name",
+					Value: sanitize(*tag.Value),
+				}
+				labels = append(labels, typeLabel)
+			}
+		}
+	}
+
+	// fmt.Println(labels)
 
 	return labels
 }
@@ -241,7 +294,7 @@ func createMinSample(value Value, timestamp int64) prompb.Sample {
 	return minSample
 }
 
-func createWriteRequestAndSendToAPS(timeseries []*prompb.TimeSeries) (*http.Response, error) {
+func createWriteRequestAndSendToAPS(timeseries []prompb.TimeSeries) (*http.Response, error) {
 	writeRequest := &prompb.WriteRequest{
 		Timeseries: timeseries,
 	}

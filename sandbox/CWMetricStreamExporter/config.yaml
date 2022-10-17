@@ -1,9 +1,9 @@
 AMP:
-    remote_write_url: "https://aps-workspaces.us-east-2.amazonaws.com/workspaces/{workspace}/api/v1/remote_write"
-    region: REGION
+    remote_write_url: "https://aps-workspaces.ap-northeast-1.amazonaws.com/workspaces/ws-2ed5ad3f-4da2-4136-805a-510a416abb20/api/v1/remote_write"
+    region: ap-northeast-1
 
 Kinesis_Firehose:
-    delivery_stream_name: Kinesis Firehose Stream
+    delivery_stream_name: demo-hose
 
 S3:
-    s3_bucket_name: S3 Bucket Name 
+    s3_bucket_name: metrics-collection 

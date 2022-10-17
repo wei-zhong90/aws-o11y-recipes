@@ -1,0 +1,23 @@
+{
+    "metric_stream_name": "CustomFull-kMEf3a",
+    "account_id": "159089215924",
+    "region": "ap-northeast-1",
+    "namespace": "CWAgent",
+    "metric_name": "disk_used_percent",
+    "dimensions": {
+      "ImageId": "ami-02c3627b04781eada",
+      "InstanceId": "i-002e9608b2da485a6",
+      "InstanceType": "m5.large",
+      "device": "tmpfs",
+      "fstype": "tmpfs",
+      "path": "/run"
+    },
+    "timestamp": 1665911580000,
+    "value": {
+      "max": 0.012760505724362868,
+      "min": 0.012760505724362868,
+      "sum": 0.025521011448725737,
+      "count": 2
+    },
+    "unit": "Percent"
+  }

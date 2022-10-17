@@ -14,3 +14,10 @@ npm_test:
 
 npm_lint:
 	cd cdk && npm run lint
+
+build:
+	@npm run build
+
+destroy:
+	@cd cdk && cdk destroy
+	@aws amp delete-workspace --workspace-id `aws amp list-workspaces --alias prometheus-sample-app --query 'workspaces[0].workspaceId' --output text`

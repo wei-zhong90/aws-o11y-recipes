@@ -37,6 +37,12 @@ export class CdkStack extends cdk.Stack {
       )
     );
 
+    lambdaFunction.role?.addManagedPolicy(
+      iam.ManagedPolicy.fromAwsManagedPolicyName(
+        "AmazonEC2ReadOnlyAccess"
+      )
+    );
+
     const lambdaProcessor = new LambdaFunctionProcessor(lambdaFunction, {
       bufferInterval: cdk.Duration.minutes(1),
       bufferSize: cdk.Size.mebibytes(3),
