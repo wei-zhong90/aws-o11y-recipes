@@ -39,6 +39,8 @@ type Dimensions struct {
 	Service    string `json:"Service"`
 	Type       string `json:"Type"`
 	InstanceId string `json:"InstanceId"`
+	Path       string `json:"path"`
+	Fstype     string `json:"fstype"`
 }
 type Value struct {
 	Count float64 `json:"count"`
@@ -208,6 +210,22 @@ func createDimensionLabels(dimensions Dimensions) []prompb.Label {
 		typeLabel := prompb.Label{
 			Name:  "type",
 			Value: sanitize(dimensions.Type),
+		}
+		labels = append(labels, typeLabel)
+	}
+
+	if dimensions.Path != "" {
+		typeLabel := prompb.Label{
+			Name:  "path",
+			Value: dimensions.Path,
+		}
+		labels = append(labels, typeLabel)
+	}
+
+	if dimensions.Fstype != "" {
+		typeLabel := prompb.Label{
+			Name:  "fstype",
+			Value: sanitize(dimensions.Fstype),
 		}
 		labels = append(labels, typeLabel)
 	}
