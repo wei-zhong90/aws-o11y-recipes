@@ -265,13 +265,11 @@ func createDimensionLabels(dimensions Dimensions) []prompb.Label {
 		}
 
 		for _, tag := range result.Tags {
-			if *tag.Key == "Name" {
-				typeLabel := prompb.Label{
-					Name:  "instance_name",
-					Value: sanitize(*tag.Value),
-				}
-				labels = append(labels, typeLabel)
+			typeLabel := prompb.Label{
+				Name:  "Instance_" + sanitize(*tag.Key),
+				Value: sanitize(*tag.Value),
 			}
+			labels = append(labels, typeLabel)
 		}
 	}
 
